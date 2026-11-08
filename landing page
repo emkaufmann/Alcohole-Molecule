@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Alcohol Molecules 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: compact header with colour key, then a 2×2 grid of square viewers (1 column on phones). */
+  :root {
+    --bg: #eef1f4;
+    --panel: #f8fafb;
+    --panel-edge: #d5dce3;
+    --fg: #1b232c;
+    --muted: #5d6b79;
+    --accent: #1f6f8b;
+    --btn: #ffffff;
+    --btn-hover: #e6eef3;
+    --atom-c: #3b4148;
+    --atom-h: #ffffff;
+    --atom-o: #e2352b;
+    --atom-h-ring: #9aa6b2;
+    --font-body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #11161b; --panel: #192129; --panel-edge: #2a3540; --fg: #e6ecf1; --muted: #93a2b0;
+      --accent: #5fb4d1; --btn: #222c36; --btn-hover: #2c3945;
+      --atom-c: #7d8792; --atom-h: #f2f4f6; --atom-o: #f0483d; --atom-h-ring: #5d6b79;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #11161b; --panel: #192129; --panel-edge: #2a3540; --fg: #e6ecf1; --muted: #93a2b0;
+    --accent: #5fb4d1; --btn: #222c36; --btn-hover: #2c3945;
+    --atom-c: #7d8792; --atom-h: #f2f4f6; --atom-o: #f0483d; --atom-h-ring: #5d6b79;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.5;
+    padding-block: 24px 40px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+  header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
+  h1 { margin: 0; font-size: 1.6rem; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+  .sub { margin: 4px 0 0; color: var(--muted); font-size: 0.92rem; max-width: 60ch; }
+
+  .key {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px;
+    padding: 10px 14px; border: 1px solid var(--panel-edge); border-radius: 10px; background: var(--panel);
+  }
+  .key-title { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+  .key-item { display: flex; align-items: center; gap: 8px; font-size: 0.92rem; }
+  .dot { width: 18px; height: 18px; border-radius: 50%; flex: none; box-shadow: inset -3px -3px 5px rgba(0,0,0,.25); }
+  .dot.c { background: var(--atom-c); }
+  .dot.h { background: var(--atom-h); outline: 1px solid var(--atom-h-ring); }
+  .dot.o { background: var(--atom-o); }
+  .sym { font-family: var(--font-mono); font-weight: 500; }
+
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  @media (max-width: 640px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+
+  .box {
+    position: relative; aspect-ratio: 1 / 1; max-width: 100%;
+    background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 12px; overflow: hidden;
+  }
+  .box canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+  .box canvas.dragging { cursor: grabbing; }
+
+  .label { position: absolute; top: 12px; left: 14px; pointer-events: none; display: flex; flex-direction: column; gap: 1px; }
+  .label .name { font-size: 1.1rem; font-weight: 600; }
+  .label .formula { font-family: var(--font-mono); font-size: 0.82rem; color: var(--muted); }
+
+  .zoom { position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; }
+  .zoom button {
+    width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--panel-edge);
+    background: var(--btn); color: var(--fg); font: 600 1.2rem/1 var(--font-body); cursor: pointer;
+    display: grid; place-items: center;
+  }
+  .zoom button:hover { background: var(--btn-hover); }
+  .zoom button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .hint { color: var(--muted); font-size: 0.85rem; margin: 0; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>The first four alcohols</h1>
+      <p class="sub">Each box shows one molecule in 3D. Drag to rotate. Pinch with two fingers, or use + and −, to zoom.</p>
+    </div>
+    <div class="key" aria-label="Colour key">
+      <span class="key-title">Colour key</span>
+      <span class="key-item"><span class="dot c"></span><span><span class="sym">C</span> Carbon</span></span>
+      <span class="key-item"><span class="dot h"></span><span><span class="sym">H</span> Hydrogen</span></span>
+      <span class="key-item"><span class="dot o"></span><span><span class="sym">O</span> Oxygen</span></span>
+    </div>
+  </header>
+
+  <main class="grid" id="grid"></main>
+  <p class="hint">Bond lengths are drawn to scale: C–C 1.54 Å, C–O 1.43 Å, C–H 1.09 Å, O–H 0.96 Å.</p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  const MOLECULES = [
+    { name: "Methanol",    formula: "CH₃OH",             carbons: 1 },
+    { name: "Ethanol",     formula: "CH₃CH₂OH",          carbons: 2 },
+    { name: "Propan-1-ol", formula: "CH₃CH₂CH₂OH",       carbons: 3 },
+    { name: "Butan-1-ol",  formula: "CH₃CH₂CH₂CH₂OH",    carbons: 4 },
+  ];
+
+  const LEN = { CC: 1.54, CO: 1.43, CH: 1.09, OH: 0.96 };
+  const RADIUS = { C: 0.36, O: 0.34, H: 0.24 };
+  const BOND_R = 0.085;
+  const TET = (109.47 * Math.PI) / 180;
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
+
+  // ---------- geometry: build a zig-zag (all-anti) alcohol with tetrahedral hydrogens ----------
+  function buildAlcohol(n) {
+    const atoms = [];  // {el, pos}
+    const bonds = [];  // [i, j]
+    const half = TET / 2;
+
+    // heavy-atom backbone in the XY plane: C1..Cn, then O
+    const backbone = [];
+    let p = V(0, 0, 0);
+    for (let i = 0; i <= n; i++) {
+      const el = i < n ? "C" : "O";
+      if (i > 0) {
+        const len = el === "O" ? LEN.CO : LEN.CC;
+        const sign = i % 2 === 1 ? 1 : -1;
+        p = p.clone().add(V(Math.sin(half) * len, sign * Math.cos(half) * len, 0));
+      }
+      atoms.push({ el, pos: p.clone() });
+      backbone.push(atoms.length - 1);
+      if (i > 0) bonds.push([backbone[i - 1], backbone[i]]);
+    }
+
+    const addH = (parent, dir, len) => {
+      atoms.push({ el: "H", pos: atoms[parent].pos.clone().add(dir.clone().normalize().multiplyScalar(len)) });
+      bonds.push([parent, atoms.length - 1]);
+    };
+
+    // terminal atom: hydrogens placed around axis u (pointing away from neighbour); r = in-plane reference
+    const terminalDirs = (u, r, count) => {
+      const perp2 = new THREE.Vector3().crossVectors(u, r).normalize();
+      const out = [];
+      const cosT = Math.cos(Math.PI - TET), sinT = Math.sin(Math.PI - TET);
+      for (let k = 0; k < count; k++) {
+        const az = Math.PI + (k * 2 * Math.PI) / 3; // k=0 is anti to r
+        const radial = r.clone().multiplyScalar(Math.cos(az)).add(perp2.clone().multiplyScalar(Math.sin(az)));
+        out.push(u.clone().multiplyScalar(cosT).add(radial.multiplyScalar(sinT)));
+      }
+      return out;
+    };
+
+    const refFor = (idx, nb, q) => {
+      const P = atoms[idx].pos, A = atoms[nb].pos;
+      const u = P.clone().sub(A).normalize();
+      let r;
+      if (q != null) {
+        r = atoms[q].pos.clone().sub(A);
+      } else {
+        r = V(0, 1, 0);
+      }
+      r.sub(u.clone().multiplyScalar(r.dot(u))).normalize();
+      return { u, r };
+    };
+
+    const B = backbone;
+    const last = B.length - 1;
+    if (n === 1) {
+      // methanol: make the O–H anti to one C–H (staggered)
+      const c = refFor(B[0], B[1], null);
+      const o = refFor(B[1], B[0], null);
+      terminalDirs(c.u, c.r.clone().negate(), 3).forEach(d => addH(B[0], d, LEN.CH));
+      terminalDirs(o.u, o.r, 1).forEach(d => addH(B[1], d, LEN.OH));
+    } else {
+      // first carbon: CH3
+      const c1 = refFor(B[0], B[1], B[2]);
+      terminalDirs(c1.u, c1.r, 3).forEach(d => addH(B[0], d, LEN.CH));
+      // middle carbons: CH2
+      for (let i = 1; i < last; i++) {
+        const P = atoms[B[i]].pos;
+        const a = atoms[B[i - 1]].pos.clone().sub(P).normalize();
+        const b = atoms[B[i + 1]].pos.clone().sub(P).normalize();
+        const bis = a.clone().add(b).negate().normalize();
+        const nrm = new THREE.Vector3().crossVectors(a, b).normalize();
+        const ang = TET / 2;
+        [1, -1].forEach(s => addH(B[i], bis.clone().multiplyScalar(Math.cos(ang)).add(nrm.clone().multiplyScalar(s * Math.sin(ang))), LEN.CH));
+      }
+      // oxygen: OH, anti to the carbon chain
+      const o = refFor(B[last], B[last - 1], B[last - 2]);
+      terminalDirs(o.u, o.r, 1).forEach(d => addH(B[last], d, LEN.OH));
+    }
+
+    // centre on centroid
+    const centre = new THREE.Vector3();
+    atoms.forEach(a => centre.add(a.pos));
+    centre.divideScalar(atoms.length);
+    atoms.forEach(a => a.pos.sub(centre));
+    return { atoms, bonds };
+  }
+
+  // ---------- theme-aware materials ----------
+  const css = () => getComputedStyle(document.documentElement);
+  const materials = {
+    C: new THREE.MeshStandardMaterial({ roughness: 0.45, metalness: 0.05 }),
+    H: new THREE.MeshStandardMaterial({ roughness: 0.4, metalness: 0.0 }),
+    O: new THREE.MeshStandardMaterial({ roughness: 0.4, metalness: 0.05 }),
+  };
+  function applyThemeColours() {
+    const s = css();
+    materials.C.color.set(s.getPropertyValue("--atom-c").trim() || "#3b4148");
+    materials.H.color.set(s.getPropertyValue("--atom-h").trim() || "#ffffff");
+    materials.O.color.set(s.getPropertyValue("--atom-o").trim() || "#e2352b");
+    viewers.forEach(v => v.requestRender());
+  }
+
+  const sphereGeo = new THREE.SphereGeometry(1, 40, 28);
+  const cylGeo = new THREE.CylinderGeometry(1, 1, 1, 20, 1, false);
+  const UP = V(0, 1, 0);
+
+  function moleculeMesh(mol) {
+    const group = new THREE.Group();
+    mol.atoms.forEach(a => {
+      const m = new THREE.Mesh(sphereGeo, materials[a.el]);
+      m.scale.setScalar(RADIUS[a.el]);
+      m.position.copy(a.pos);
+      group.add(m);
+    });
+    // each bond is two half-cylinders, coloured by the atom at that end
+    mol.bonds.forEach(([i, j]) => {
+      const A = mol.atoms[i], Bt = mol.atoms[j];
+      const mid = A.pos.clone().add(Bt.pos).multiplyScalar(0.5);
+      [[A, mid], [Bt, mid]].forEach(([atom, end]) => {
+        const dir = end.clone().sub(atom.pos);
+        const len = dir.length();
+        const c = new THREE.Mesh(cylGeo, materials[atom.el]);
+        c.scale.set(BOND_R, len, BOND_R);
+        c.position.copy(atom.pos.clone().add(end).multiplyScalar(0.5));
+        c.quaternion.setFromUnitVectors(UP, dir.normalize());
+        group.add(c);
+      });
+    });
+    return group;
+  }
+
+  // ---------- one viewer per box ----------
+  const viewers = [];
+  const grid = document.getElementById("grid");
+  const ZMIN = 0.4, ZMAX = 4;
+
+  function makeViewer(spec) {
+    const box = document.createElement("section");
+    box.className = "box";
+    box.setAttribute("aria-label", spec.name + " 3D model");
+    box.innerHTML =
+      '<div class="label"><span class="name"></span><span class="formula"></span></div>' +
+      '<div class="zoom"><button type="button" class="zout" aria-label="Zoom out">−</button>' +
+      '<button type="button" class="zin" aria-label="Zoom in">+</button></div>';
+    box.querySelector(".name").textContent = spec.name;
+    box.querySelector(".formula").textContent = spec.formula;
+    grid.appendChild(box);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setClearColor(0x000000, 0);
+    box.insertBefore(renderer.domElement, box.firstChild);
+    const canvas = renderer.domElement;
+
+    const scene = new THREE.Scene();
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x445566, 0.75));
+    const key = new THREE.DirectionalLight(0xffffff, 0.8);
+    key.position.set(4, 6, 8);
+    scene.add(key);
+    const fill = new THREE.DirectionalLight(0xffffff, 0.25);
+    fill.position.set(-6, -2, 4);
+    scene.add(fill);
+
+    const mol = buildAlcohol(spec.carbons);
+    const group = moleculeMesh(mol);
+    group.rotation.set(0.35, -0.55, 0.1);
+    scene.add(group);
+
+    let radius = 0;
+    mol.atoms.forEach(a => { radius = Math.max(radius, a.pos.length() + RADIUS[a.el]); });
+    radius = Math.max(radius, 2.4);
+
+    const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 200);
+    const fovHalf = (camera.fov * Math.PI) / 360;
+    const baseDist = (radius / Math.sin(fovHalf)) * 1.15;
+    let zoom = 1;
+
+    let pending = false;
+    const render = () => { pending = false; renderer.render(scene, camera); };
+    const requestRender = () => { if (!pending) { pending = true; requestAnimationFrame(render); } };
+
+    const setZoom = z => {
+      zoom = Math.min(ZMAX, Math.max(ZMIN, z));
+      camera.position.set(0, 0, baseDist / zoom);
+      camera.lookAt(0, 0, 0);
+      requestRender();
+    };
+    setZoom(1);
+
+    const resize = () => {
+      const w = box.clientWidth, h = box.clientHeight;
+      if (!w || !h) return;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      requestRender();
+    };
+    new ResizeObserver(resize).observe(box);
+
+    // rotation (drag) and pinch zoom (two pointers)
+    const pointers = new Map();
+    let pinchDist = 0;
+    const qTmp = new THREE.Quaternion();
+    const AX = V(1, 0, 0), AY = V(0, 1, 0);
+
+    const rotateBy = (dx, dy) => {
+      const s = 0.009;
+      qTmp.setFromAxisAngle(AY, dx * s); group.quaternion.premultiply(qTmp);
+      qTmp.setFromAxisAngle(AX, dy * s); group.quaternion.premultiply(qTmp);
+      requestRender();
+    };
+    const distance = () => {
+      const [a, b] = [...pointers.values()];
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    };
+
+    canvas.addEventListener("pointerdown", e => {
+      canvas.setPointerCapture(e.pointerId);
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.size === 2) pinchDist = distance();
+      canvas.classList.add("dragging");
+    });
+    canvas.addEventListener("pointermove", e => {
+      const prev = pointers.get(e.pointerId);
+      if (!prev) return;
+      const cur = { x: e.clientX, y: e.clientY };
+      pointers.set(e.pointerId, cur);
+      if (pointers.size === 1) {
+        rotateBy(cur.x - prev.x, cur.y - prev.y);
+      } else if (pointers.size === 2) {
+        const d = distance();
+        if (pinchDist > 0) setZoom(zoom * (d / pinchDist));
+        pinchDist = d;
+      }
+    });
+    const end = e => {
+      pointers.delete(e.pointerId);
+      pinchDist = pointers.size === 2 ? distance() : 0;
+      if (!pointers.size) canvas.classList.remove("dragging");
+    };
+    canvas.addEventListener("pointerup", end);
+    canvas.addEventListener("pointercancel", end);
+
+    // trackpad pinch (browsers report it as ctrl + wheel)
+    canvas.addEventListener("wheel", e => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      setZoom(zoom * Math.exp(-e.deltaY * 0.01));
+    }, { passive: false });
+    // Safari trackpad pinch
+    let gStart = 1;
+    canvas.addEventListener("gesturestart", e => { e.preventDefault(); gStart = zoom; });
+    canvas.addEventListener("gesturechange", e => { e.preventDefault(); setZoom(gStart * e.scale); });
+
+    box.querySelector(".zin").addEventListener("click", () => setZoom(zoom * 1.25));
+    box.querySelector(".zout").addEventListener("click", () => setZoom(zoom / 1.25));
+
+    return { requestRender };
+  }
+
+  MOLECULES.forEach(m => viewers.push(makeViewer(m)));
+  applyThemeColours();
+
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyThemeColours);
+  new MutationObserver(applyThemeColours).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+})();
+</script>
+</body>
+</html>
